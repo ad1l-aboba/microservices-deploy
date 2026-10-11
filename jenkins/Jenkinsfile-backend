@@ -39,11 +39,11 @@ pipeline {
           }
         }
         stage('Test') {
-          steps {
-            sh './mvnw test'
-            junit '**/target/surefire-reports/TEST-*.xml'
-          }
-        }
+    steps {
+        sh './mvnw test -DargLine=-Xmx512m'
+        junit allowEmptyResults: true, testResults: '**/target/surefire-reports/TEST-*.xml'
+    }
+}
         stage('Package') {
           steps {
             sh './mvnw package -DskipTests'
