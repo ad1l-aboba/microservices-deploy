@@ -5,7 +5,7 @@ pipeline {
     skipDefaultCheckout()
   }
   environment {
-    IMAGE_BASE = 'ad1l-aboba/microservices-backend'
+    IMAGE_BASE = 'adilaboba/microservices-backend'
     IMAGE_TAG = "v$BUILD_NUMBER"
     IMAGE_NAME = "${env.IMAGE_BASE}:${env.IMAGE_TAG}"
     IMAGE_NAME_LATEST = "${env.IMAGE_BASE}:latest"
@@ -13,6 +13,17 @@ pipeline {
     MAVEN_OPTS = '-Xmx512m -Xms128m'
   }
   stages {
+    stage('Checkout') {
+      agent any
+      steps {
+        deleteDir()
+        git url: 'https://github.com/ad1l-aboba/microservices-backend.git',
+            branch: 'master',
+            credentialsId: 'github-creds'
+        stash name: 'src', excludes: '.git/**'
+      }
+    }
+
     stage("Prepare container") {
       agent {
         docker {
@@ -23,8 +34,8 @@ pipeline {
       stages {
         stage('Build') {
           steps {
-            checkout scm
-            sh './mvnw compile'
+            unstash 'src'
+            sh 'chmod +x mvnw && ./mvnw compile'
           }
         }
         stage('Test') {
@@ -36,6 +47,7 @@ pipeline {
         stage('Package') {
           steps {
             sh './mvnw package -DskipTests'
+            stash name: 'artifact', includes: 'target/*.jar, Dockerfile-packaged'
           }
         }
       }
@@ -43,10 +55,8 @@ pipeline {
 
     stage('Push images') {
       agent any
-      when {
-        branch 'master'
-      }
       steps {
+        unstash 'artifact'
         script {
           def dockerImage = docker.build("${env.IMAGE_NAME}", "-f ${env.DOCKERFILE_NAME} .")
           docker.withRegistry('', 'dockerhub-creds') {
@@ -61,12 +71,10 @@ pipeline {
 
     stage('Trigger kubernetes') {
       agent any
-      when {
-        branch 'master'
-      }
       steps {
-        withKubeConfig([credentialsId: 'kubernetes-creds', serverUrl: "${CLUSTER_URL}", namespace: "${CLUSTER_NAMESPACE}"]) {
-          sh "helm upgrade --install ${HELM_PROJECT} ${HELM_CHART} --reuse-values --set backend.image.tag=${env.IMAGE_TAG}"
+        // skipTlsVerify нужен, потому что сертификат k3s самоподписанный
+        withKubeConfig([credentialsId: 'kubernetes-creds', serverUrl: "${CLUSTER_URL}", namespace: "${CLUSTER_NAMESPACE}", skipTlsVerify: true]) {
+          sh "helm upgrade --install ${HELM_PROJECT} ${HELM_CHART} --reuse-values --set backend.image.tag=${env.IMAGE_TAG} --set backend.image.name=${env.IMAGE_BASE}"
         }
       }
     }
