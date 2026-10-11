@@ -5,7 +5,7 @@ pipeline {
     skipDefaultCheckout()
   }
   environment {
-    IMAGE_BASE = 'ad1l-aboba/microservices-backend'   // ← замените на ваш Docker Hub логин!
+    IMAGE_BASE = 'ad1l-aboba/microservices-backend'
     IMAGE_TAG = "v$BUILD_NUMBER"
     IMAGE_NAME = "${env.IMAGE_BASE}:${env.IMAGE_TAG}"
     IMAGE_NAME_LATEST = "${env.IMAGE_BASE}:latest"
@@ -65,7 +65,9 @@ pipeline {
         branch 'master'
       }
       steps {
-        echo "Kubernetes cluster not configured — deploy skipped"
+        withKubeConfig([credentialsId: 'kubernetes-creds', serverUrl: "${CLUSTER_URL}", namespace: "${CLUSTER_NAMESPACE}"]) {
+          sh "helm upgrade --install ${HELM_PROJECT} ${HELM_CHART} --reuse-values --set backend.image.tag=${env.IMAGE_TAG}"
+        }
       }
     }
   }
