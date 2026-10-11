@@ -5,11 +5,12 @@ pipeline {
     skipDefaultCheckout()
   }
   environment {
-    IMAGE_BASE = 'anshelen/microservices-backend'
+    IMAGE_BASE = 'ad1l-aboba/microservices-backend'   // ← замените на ваш Docker Hub логин!
     IMAGE_TAG = "v$BUILD_NUMBER"
-  	IMAGE_NAME = "${env.IMAGE_BASE}:${env.IMAGE_TAG}"
-  	IMAGE_NAME_LATEST = "${env.IMAGE_BASE}:latest"
-  	DOCKERFILE_NAME = "Dockerfile-packaged"
+    IMAGE_NAME = "${env.IMAGE_BASE}:${env.IMAGE_TAG}"
+    IMAGE_NAME_LATEST = "${env.IMAGE_BASE}:latest"
+    DOCKERFILE_NAME = "Dockerfile-packaged"
+    MAVEN_OPTS = '-Xmx512m -Xms128m'
   }
   stages {
     stage("Prepare container") {
@@ -64,9 +65,7 @@ pipeline {
         branch 'master'
       }
       steps {
-        withKubeConfig([credentialsId: 'kubernetes-creds', serverUrl: "${CLUSTER_URL}", namespace: "${CLUSTER_NAMESPACE}"]) {
-          sh "helm upgrade ${HELM_PROJECT} ${HELM_CHART} --reuse-values --set backend.image.tag=${env.IMAGE_TAG}"
-        }
+        echo "Kubernetes cluster not configured — deploy skipped"
       }
     }
   }
